@@ -14,6 +14,12 @@ state.json
 
 # Reports (generated output)
 reports/
+lt_reports/
+
+# Long-term bot database (runtime data)
+lt_bot.db
+lt_bot.db-wal
+lt_bot.db-shm
 
 # macOS
 .DS_Store
