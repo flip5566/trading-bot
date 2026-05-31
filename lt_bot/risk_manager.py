@@ -116,7 +116,7 @@ def assess_risk(
 
     if atr_pct >= CRASH_ATR_PCT_THRESHOLD:
         violations.append(
-            f"HIGH VOLATILITY: ATR {atr_pct:.1f}% ≥ threshold {CRASH_ATR_PCT_THRESHOLD*100:.0f}%"
+            f"HIGH VOLATILITY: ATR {atr_pct:.1f}% ≥ threshold {CRASH_ATR_PCT_THRESHOLD:.0f}%"
         )
         if not emergency:
             emergency = True

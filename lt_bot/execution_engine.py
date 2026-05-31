@@ -1,5 +1,5 @@
 """
-Execution Engine (V1 — Recommendations Only)
+Execution Engine
 
 Daily pipeline:
   1. Detect market regime
@@ -10,10 +10,9 @@ Daily pipeline:
   6. Check mean-reversion opportunities
   7. Check profit-taking signals
   8. Run risk management checks
-  9. Generate and save daily report
- 10. Record all decisions to DB
-
-V2 will add live trade execution through an exchange API.
+  9. Execute paper trades (if trader supplied)
+ 10. Generate and save daily report
+ 11. Record all decisions to DB
 """
 from __future__ import annotations
 
@@ -31,6 +30,7 @@ from .rotation_engine import detect_rotation, format_rotation
 from .mean_reversion import find_opportunities, format_opportunities
 from .profit_taker import check_profit_signals, format_profit_signals
 from .risk_manager import assess_risk, format_risk_assessment
+from .trader import PaperTrader, format_execution_summary
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +80,7 @@ def generate_daily_report(
     db: Database,
     base_dca_usd: float = BASE_DCA_AMOUNT_USD,
     current_allocation: dict[str, float] | None = None,
+    trader: PaperTrader | None = None,
 ) -> str:
     """
     Run the full analysis pipeline and return a formatted report string.
@@ -116,6 +117,11 @@ def generate_daily_report(
     profit_signals = check_profit_signals(db)
 
     # ── Step 8: Risk ──────────────────────────────────────────────────────────
+    # If paper trader is active, read live allocation from Alpaca instead of manual input
+    if trader is not None:
+        live_fracs, _ = trader.get_allocation()
+        current_allocation = live_fracs
+
     risk = assess_risk(db, current_allocation)
     guard_warnings = risk_guard(current_allocation or {})
 
@@ -166,13 +172,35 @@ def generate_daily_report(
             "recommended_usd": 0,
         })
 
-    db.save_portfolio_snapshot({
-        "total_value":  0,     # updated when real portfolio value is known
-        "regime":       regime,
-        "ai_score":     total,
-        "allocations":  current_allocation or {},
-        "targets":      plan.targets,
-    })
+    # ── Step 9: Execute paper trades ─────────────────────────────────────────
+    exec_summary = None
+    if trader is not None:
+        # Rebuild plan with live allocation before executing
+        plan = build_allocation_plan(db, regime, current_allocation)
+        exec_summary = trader.execute_plan(
+            db             = db,
+            score_data     = score_data,
+            regime         = regime,
+            dca_rec        = dca_rec,
+            profit_signals = profit_signals,
+            risk_assessment = risk,
+            target_allocation = plan.targets,
+        )
+        db.save_portfolio_snapshot({
+            "total_value":  exec_summary.portfolio_value,
+            "regime":       regime,
+            "ai_score":     total,
+            "allocations":  current_allocation or {},
+            "targets":      plan.targets,
+        })
+    else:
+        db.save_portfolio_snapshot({
+            "total_value":  0,
+            "regime":       regime,
+            "ai_score":     total,
+            "allocations":  current_allocation or {},
+            "targets":      plan.targets,
+        })
 
     # ── Build report string ───────────────────────────────────────────────────
     lines = [
@@ -237,6 +265,16 @@ def generate_daily_report(
         for w in guard_warnings:
             lines.append(f"    ⚠ {w}")
 
+    # Paper trading section
+    if exec_summary is not None:
+        lines += [
+            "",
+            divL,
+            " PAPER TRADING — EXECUTED",
+            divL,
+            format_execution_summary(exec_summary),
+        ]
+
     lines += [
         "",
         divL,
@@ -245,7 +283,7 @@ def generate_daily_report(
         _asset_summary_table(db),
         "",
         divH,
-        f" Report saved  •  Version 1 (recommendations only — no live trading)",
+        f" Paper trading: {'ACTIVE' if trader else 'OFF (recommendations only)'}",
         divH,
     ]
 

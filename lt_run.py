@@ -5,15 +5,20 @@ Run once per day (e.g. via cron, Task Scheduler, or manually).
 Generates a full portfolio analysis and recommendation report.
 
 Usage:
-    python lt_run.py
+    # Recommendations only (default)
+    python lt_run.py --dca-amount 1000
 
-Optional: pass --allocation to describe your current holdings.
+    # With live paper trading (reads Alpaca account + executes orders)
+    python lt_run.py --paper-trade --dca-amount 1000
+
+    # Pass your allocation manually (recommendations only)
     python lt_run.py --allocation BTC=0.40 ETH=0.25 SOL=0.10 STABLECOIN=0.25
 
-Optional: set base DCA amount via environment variable:
-    LT_DCA_AMOUNT=500 python lt_run.py
-
-V1 generates recommendations only (no live trading).
+With --paper-trade the bot will:
+  - Read your live Alpaca paper account balance and positions
+  - Execute DCA buys on underweight assets when score >= 50
+  - Execute partial sells on profit-taking signals
+  - Skip all buying in CRASH regime or emergency mode
 """
 from __future__ import annotations
 
@@ -22,6 +27,11 @@ import logging
 import os
 import sys
 from pathlib import Path
+
+# Windows terminals often default to a non-UTF-8 code page; reconfigure stdout
+# so the report's box-drawing characters print cleanly.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 # Add project root to path for module resolution
 sys.path.insert(0, str(Path(__file__).parent))
@@ -74,6 +84,11 @@ def main() -> None:
         help=f"Monthly base DCA amount in USD (default: {BASE_DCA_AMOUNT_USD:,.0f})",
     )
     parser.add_argument(
+        "--paper-trade",
+        action="store_true",
+        help="Connect to Alpaca paper account and execute trades (default: recommendations only)",
+    )
+    parser.add_argument(
         "--skip-collect",
         action="store_true",
         help="Skip data collection and use cached data (faster, for testing)",
@@ -84,15 +99,27 @@ def main() -> None:
 
     db = Database()
 
+    # Set up paper trader if requested
+    trader = None
+    if args.paper_trade:
+        from lt_bot.trader import PaperTrader
+        trader = PaperTrader()
+        acct = trader.get_account_summary()
+        print(f"\n  Alpaca paper account connected")
+        print(f"  Portfolio value : ${acct['portfolio_value']:,.2f}")
+        print(f"  Buying power    : ${acct['buying_power']:,.2f}\n")
+        # Ignore manual --allocation when paper trading (we read live positions)
+        allocation = None
+
     if args.skip_collect:
         from lt_bot.execution_engine import generate_daily_report
-        report = generate_daily_report(db, args.dca_amount, allocation)
+        report = generate_daily_report(db, args.dca_amount, allocation, trader)
         print(report)
     else:
         from lt_bot.data_collector import collect_all
         collect_all(db)
         from lt_bot.execution_engine import generate_daily_report
-        report = generate_daily_report(db, args.dca_amount, allocation)
+        report = generate_daily_report(db, args.dca_amount, allocation, trader)
         print(report)
 
 

@@ -78,7 +78,7 @@ MIN_STABLECOIN_PCT      = 0.10   # Always keep ≥ 10% stablecoin reserve
 
 # Emergency mode triggers
 CRASH_DAILY_DROP_PCT    = -0.10  # BTC drops ≥ 10% in 1 day
-CRASH_ATR_PCT_THRESHOLD = 0.08   # ATR ≥ 8% of price
+CRASH_ATR_PCT_THRESHOLD = 8.0    # ATR ≥ 8% of price (same units as atr_pct column)
 
 # Profit-taking triggers
 PT_RSI_OVERBOUGHT       = 75.0
