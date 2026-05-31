@@ -1,0 +1,23 @@
+# Virtual environment
+venv/
+
+# Environment variables (API keys — never commit these)
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# State file (machine-specific, changes every run)
+state.json
+
+# Reports (generated output)
+reports/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
