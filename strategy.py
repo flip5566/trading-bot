@@ -56,7 +56,7 @@ EMA_FAST: int = 20
 EMA_SLOW: int = 50
 RSI_PERIOD: int = 14
 VOL_LOOKBACK: int = 20
-VOL_THRESHOLD: float = 1.2        # breakout volume must be ≥ 1.2× average
+VOL_THRESHOLD: float = 1.0        # breakout volume must be ≥ 1.0× average
 
 STATE_FILE = Path(__file__).parent / "state.json"
 

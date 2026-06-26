@@ -243,10 +243,17 @@ def liquidity_score(db: Database) -> float:
         vol_pts = 30
 
     # Stablecoin supply (0–40): high stablecoin % = dry powder = bullish
+    # Fall back to 25 (neutral) when CoinGecko data is missing so one
+    # unavailable API doesn't crater the whole liquidity score.
     md = db.get_latest_market_data() or {}
     stable_cap = md.get("stablecoin_market_cap") or 0
-    total_cap  = md.get("total_market_cap") or 1
-    stable_pct = stable_cap / total_cap if total_cap > 0 else 0
+    total_cap  = md.get("total_market_cap") or 0
+
+    if total_cap == 0 or stable_cap == 0:
+        # No market data — use neutral rather than penalising
+        return _clamp(vol_pts + 25)
+
+    stable_pct = stable_cap / total_cap
 
     if stable_pct >= 0.15:
         stable_pts = 40   # lots of dry powder

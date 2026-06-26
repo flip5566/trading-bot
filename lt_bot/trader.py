@@ -250,7 +250,29 @@ class PaperTrader:
             )
             summary.trades.append(r)
 
-        # ── 3. DCA buying ─────────────────────────────────────────────────────
+        # ── 3. Mean-reversion bypass (BEAR only, high-conviction oversold) ───────
+        # Even in BEAR regime, allow small buys when RSI < 32 AND F&G < 30.
+        # These are historically strong long-term entries. Capped at 0.5× base DCA.
+        if regime == "BEAR":
+            from .mean_reversion import find_opportunities
+            mr_opps = find_opportunities(db)
+            high_conf = [o for o in mr_opps if o.rsi < 32
+                         and (o.fear_greed or 50) < 30
+                         and o.confidence in ("HIGH", "MEDIUM")]
+            if high_conf:
+                acct_mr = self.get_account_summary()
+                mr_budget = min(dca_rec.base_amount_usd * 0.5, acct_mr["buying_power"] * 0.05)
+                per_opp   = mr_budget / len(high_conf) if high_conf else 0
+                for opp in high_conf:
+                    if per_opp >= MIN_ORDER_USD:
+                        r = self._buy_notional(
+                            opp.ticker, per_opp,
+                            f"MEAN_REVERSION bypass | RSI={opp.rsi:.0f} F&G={opp.fear_greed}",
+                            db,
+                        )
+                        summary.trades.append(r)
+
+        # ── 4. DCA buying ─────────────────────────────────────────────────────
         if regime == "CRASH":
             summary.skipped_reasons.append(f"Regime={regime} — DCA paused")
             return summary

@@ -157,8 +157,10 @@ def df_to_indicator_rows(df: pd.DataFrame) -> list[dict]:
 
     rows = []
     for _, row in df.iterrows():
-        r = {}
+        r = {"ts": row["ts"]}
         for col in cols:
+            if col == "ts":
+                continue
             val = row.get(col, None)
             r[col] = None if (val is None or (isinstance(val, float) and np.isnan(val))) else float(val)
         rows.append(r)

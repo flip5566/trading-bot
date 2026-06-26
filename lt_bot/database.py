@@ -372,7 +372,11 @@ class Database:
             (:ts, :symbol, :action, :reason, :ai_score, :market_regime,
              :dca_multiplier, :recommended_usd, :executed)
         """
-        data.setdefault("executed", 0)
+        data.setdefault("executed",        0)
+        data.setdefault("ai_score",        None)
+        data.setdefault("market_regime",   None)
+        data.setdefault("dca_multiplier",  None)
+        data.setdefault("recommended_usd", None)
         with self._conn() as conn:
             conn.execute(sql, data)
 
